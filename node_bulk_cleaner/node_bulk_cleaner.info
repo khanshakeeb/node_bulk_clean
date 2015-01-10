@@ -1,0 +1,4 @@
+name = Node bulk cleaner
+core = 7.x
+description = It will batch process in order to delete bulk data
+package = REVERIE

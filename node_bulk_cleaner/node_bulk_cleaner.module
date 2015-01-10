@@ -1,0 +1,134 @@
+<?php
+
+function node_bulk_cleaner_menu() {
+  $items = array();
+  $items['node_bulk_cleaner/bulk_cleaner'] = array(
+    'title' => 'Node bulk cleaner',
+    'description' => 'It will delete batch process in order to delete bulk record',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('node_bulk_cleaner_form'),
+    'access callback' => TRUE,
+  );
+
+  return $items;
+}
+
+
+function node_bulk_cleaner_form(){
+	$form['number_of_records'] = array(
+		'#type'=> 'textfield'	
+	);	
+  	$form['submit'] = array(
+    		'#type' => 'submit',
+    		'#value' => 'Go',
+  	);
+
+  return $form;
+}
+
+function node_bulk_cleaner_form_submit($form, &$form_state){
+	/**
+	* @todo: call bulk operation function
+	*/
+	// Reset counter for debug information.
+  $_SESSION['http_request_count'] = 0;
+ 	
+  $batch = node_cleaner_bulk_batch1();
+	batch_set($batch);
+
+}
+
+function node_cleaner_bulk_batch1(){
+
+   $nodes = _get_numbers_nodes($_POST['number_of_records']); 
+   $num_operations = $_POST['number_of_records'];//$number_of_records;
+	  drupal_set_message(t('Creating an array of @num operations', array('@num' => $num_operations)));
+
+  $operations = array();
+  // for ($i = 0; $i < $num_operations; $i++) {
+  //   $operations[] = array(
+  //     'batch_single_node_cleaner_op',
+  //     array(
+  //       $nid,
+  //       t('(Operation @operation)', array('@operation' => $i)),
+  //     ),
+  //   );
+  // }
+
+  $i = 0;
+  foreach ($nodes as $key => $node) {
+    $operations[] = array(
+      'batch_single_node_cleaner_op',
+      array(
+        $node->nid,
+        t('(Operation @operation)', array('@operation' => $i)),
+      ),
+    );
+    $i++;
+  }
+  $batch = array(
+    'operations' => $operations,
+    'finished' => 'batch_node_bulk_cleaner_finished',
+  );
+  return $batch;
+}
+
+function batch_single_node_cleaner_op($nid,$operation_details, &$context){
+	  
+	  $node = node_load($nid, NULL, TRUE);
+
+	 
+	  $context['results'][] = $node->nid . ' : ' . check_plain($node->title);
+
+	  // Optional message displayed under the progressbar.
+	  $context['message'] = t('Deleting node "@title"', array('@title' => $node->title)) . ' ' . $operation_details;
+
+    node_delete($nid);
+  	
+    _batch_node_bulk_cleaner_update_http_requests();
+}
+
+function _get_numbers_nodes($number_of_records) {
+ $results = db_select('node', 'n')
+    ->fields('n')
+    ->range(0,$number_of_records)
+    ->execute()
+    ->fetchAll();
+   
+  return $results;
+}
+
+
+function _batch_node_bulk_cleaner_get_http_requests() {
+  return !empty($_SESSION['http_request_count']) ? $_SESSION['http_request_count'] : 0;
+}
+
+function _batch_node_bulk_cleaner_update_http_requests() {
+  $_SESSION['http_request_count']++;
+}
+
+function batch_node_bulk_cleaner_finished($success, $results, $operations){
+	 if ($success) {
+	    // Here we could do something meaningful with the results.
+	    // We just display the number of nodes we processed...
+	    drupal_set_message(t('@count results processed in @requests HTTP requests.', array('@count' => count($results), '@requests' => 		    _batch_node_bulk_cleaner_get_http_requests())));
+	    drupal_set_message(t('The final result was "%final"', array('%final' => end($results))));
+  	}
+  	else {
+	    // An error occurred.
+	    // $operations contains the operations that remained unprocessed.
+	    $error_operation = reset($operations);
+	    drupal_set_message(
+      			t('An error occurred while processing @operation with arguments : @args',
+				array(
+				  '@operation' => $error_operation[0],
+				  '@args' => print_r($error_operation[0], TRUE),
+				)
+      			)
+    	);
+  }
+}
+
+
+
+
