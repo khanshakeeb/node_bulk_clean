@@ -1,4 +1,0 @@
-name = Node bulk cleaner
-core = 7.x
-description = Customisations for REVERIE
-package = REVERIE
